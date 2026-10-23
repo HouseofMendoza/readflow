@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,6 +9,7 @@
 :root{--bg:#101114;--panel:#1a1b21;--line:#30313a;--red:#ff414d;--muted:#a2a3ae}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:#f7f7fa;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif}
+body.noscroll{overflow:hidden}
 header{padding:20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
 .logo{font-size:24px;font-weight:850;letter-spacing:-1px}
 .logo span{color:var(--red)}
@@ -29,11 +29,29 @@ button:disabled{opacity:.35}
 .focus{color:var(--red)}
 #reference{position:absolute;bottom:15px;font-size:12px;color:var(--muted);text-align:center}
 input[type=range]{width:100%;accent-color:var(--red)}
-#readingText{font-family:Georgia,serif;font-size:19px;line-height:1.85;white-space:pre-wrap;overflow-wrap:anywhere;max-height:50vh;overflow:auto}
+#readingText{position:relative;font-family:Georgia,serif;font-size:19px;line-height:1.85;white-space:pre-wrap;overflow-wrap:anywhere;max-height:50vh;overflow:auto}
 #status{font-size:12px;color:var(--muted);margin-top:12px;line-height:1.5}
 #progress{height:4px;background:var(--red);width:0}
 .hidden{display:none}
 footer{text-align:center;padding:20px;color:var(--muted);font-size:12px}
+
+/* Tap-to-jump passage */
+.w{cursor:pointer;border-radius:4px;-webkit-tap-highlight-color:transparent}
+.w:active{background:rgba(255,65,77,.25)}
+.w.cur{background:rgba(255,65,77,.4);color:#fff;box-shadow:0 0 0 3px rgba(255,65,77,.4)}
+.vnum{color:var(--muted)}
+
+/* Full screen */
+#fsBtn{position:absolute;top:10px;right:10px;width:40px;height:40px;padding:0;display:flex;align-items:center;justify-content:center;background:rgba(41,42,50,.85);z-index:2}
+#fsBar{display:none}
+#stage.full{position:fixed;inset:0;z-index:1000;height:auto;border:0;border-radius:0;padding:20px}
+#stage.full #word{font-size:clamp(44px,14vw,120px)}
+#stage.full #fsBtn{top:calc(env(safe-area-inset-top,0px) + 10px)}
+#stage.full #reference{bottom:calc(env(safe-area-inset-bottom,0px) + 140px)}
+#stage.full #fsBar{display:block;position:absolute;left:14px;right:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);z-index:2}
+#fsBar .row button{padding:13px 4px}
+#fsInfo{text-align:center;margin-bottom:10px}
+
 @media(min-width:650px){.selectors{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:12px}.selectors select{margin:0}main{padding-top:25px}}
 </style>
 </head>
@@ -66,8 +84,19 @@ footer{text-align:center;padding:20px;color:var(--muted);font-size:12px}
 <section class="panel">
 <h2>Focus reader</h2>
 <div id="stage">
+  <button id="fsBtn" aria-label="Full screen"></button>
   <div id="word">Readflow</div>
   <div id="reference">Your next chapter starts here.</div>
+  <div id="fsBar">
+    <div id="fsInfo" class="small"></div>
+    <div class="row">
+      <button id="fsSlower">−25</button>
+      <button id="fsBack">←</button>
+      <button id="fsPlay" class="primary">▶ Start</button>
+      <button id="fsNext">→</button>
+      <button id="fsFaster">+25</button>
+    </div>
+  </div>
 </div>
 <div style="margin-top:18px">
 <div class="row"><label>Reading speed</label><strong id="speedLabel" style="text-align:right">250 WPM</strong></div>
@@ -90,7 +119,7 @@ footer{text-align:center;padding:20px;color:var(--muted);font-size:12px}
 
 <section class="panel" id="normalPanel">
 <h2>Read the full passage</h2>
-<p class="small">Read normally whenever you want to review a passage or take a break from speed reading.</p>
+<p class="small">Tap any word to jump the focus reader to that spot. Read normally whenever you want to review a passage or take a break from speed reading.</p>
 <div id="readingText">Your reading passage will appear here.</div>
 </section>
 </main>
@@ -118,13 +147,18 @@ const books=[
 ];
 
 let tokens=[],index=0,timer=null,playing=false,customName="";
+let wordEls=[],lastEl=null,renderId=0;
 const cache={};
 
 books.forEach(b=>$("book").add(new Option(b[0],b[0])));
 $("book").value="Genesis";
 
 function status(s){$("status").textContent=s}
-function stop(){playing=false;clearTimeout(timer);timer=null;$("play").textContent="▶ Start"}
+function setPlayLabel(){
+ const t=playing?"Ⅱ Pause":"▶ Start";
+ $("play").textContent=t;$("fsPlay").textContent=t;
+}
+function stop(){playing=false;clearTimeout(timer);timer=null;setPlayLabel()}
 
 function escapeHTML(s){
  return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -138,6 +172,25 @@ function focal(word){
  return chars.map((c,i)=>i===target?'<span class="focus">'+escapeHTML(c)+'</span>':escapeHTML(c)).join("");
 }
 
+/* Highlight the current word in the passage */
+function highlight(scroll){
+ if(lastEl){lastEl.classList.remove("cur");lastEl=null}
+ const el=wordEls[index];
+ if(!el)return;
+ el.classList.add("cur");
+ lastEl=el;
+ if(scroll){
+  const box=$("readingText");
+  if(el.offsetTop<box.scrollTop+10||el.offsetTop+el.offsetHeight>box.scrollTop+box.clientHeight-10){
+   box.scrollTo({top:Math.max(0,el.offsetTop-box.clientHeight/3),behavior:"smooth"});
+  }
+ }
+}
+
+function updateFsInfo(){
+ $("fsInfo").textContent=$("speed").value+" WPM · Word "+(tokens.length?index+1:0)+" of "+tokens.length;
+}
+
 function display(){
  if(!tokens.length){$("word").textContent="Load a book to begin";return}
  index=Math.max(0,Math.min(index,tokens.length-1));
@@ -145,6 +198,8 @@ function display(){
  $("reference").textContent=tokens[index].ref||customName||"Readflow";
  $("count").textContent="Word "+(index+1)+" of "+tokens.length;
  $("progress").style.width=((index+1)/tokens.length*100)+"%";
+ highlight(playing);
+ updateFsInfo();
  try{
   localStorage.setItem("readflow-progress",JSON.stringify({
    source:$("source").value,book:$("book").value,
@@ -171,8 +226,24 @@ function toggle(){
  if(!tokens.length){status("Load a book first.");return}
  if(playing){stop();return}
  if(index>=tokens.length-1)index=0;
- playing=true;$("play").textContent="Ⅱ Pause";tick();
+ playing=true;setPlayLabel();tick();
 }
+
+/* Jump to a word (tap in the passage) */
+function jump(i){
+ if(!tokens.length)return;
+ index=i;
+ if(playing){clearTimeout(timer);display();tick()}
+ else display();
+ if(!$("stage").classList.contains("full")){
+  $("stage").scrollIntoView({behavior:"smooth",block:"center"});
+ }
+}
+
+$("readingText").addEventListener("click",e=>{
+ const w=e.target.closest(".w");
+ if(w)jump(Number(w.dataset.i));
+});
 
 function setTokens(text,ref){
  return text.trim().split(/\s+/).filter(Boolean).map(word=>({word,ref:ref||customName}));
@@ -182,8 +253,51 @@ function showNormal(){
  $("normalPanel").classList.remove("hidden");
 }
 
+/* Build the passage with a clickable span for every word */
+function renderPassage(items){
+ const box=$("readingText");
+ box.replaceChildren();
+ wordEls=[];lastEl=null;
+ const id=++renderId;
+ let pos=0;
+ (function chunk(){
+  if(id!==renderId)return;
+  const f=document.createDocumentFragment();
+  const end=Math.min(pos+3000,items.length);
+  for(;pos<end;pos++){
+   const it=items[pos];
+   if(typeof it==="string")f.append(it);
+   else if(it.w!==undefined){
+    const s=document.createElement("span");
+    s.className="w";s.textContent=it.w;s.dataset.i=wordEls.length;
+    wordEls.push(s);f.append(s);
+   }else{
+    const s=document.createElement("span");
+    s.className="vnum";s.textContent=it.n;f.append(s);
+   }
+  }
+  box.append(f);
+  highlight(false);
+  if(pos<items.length)requestAnimationFrame(chunk);
+ })();
+}
+
+function renderBible(verses){
+ const items=[];
+ verses.forEach((v,k)=>{
+  items.push({n:v.verse+". "});
+  v.text.trim().split(/\s+/).filter(Boolean).forEach((w,j)=>{
+   if(j)items.push(" ");
+   items.push({w});
+  });
+  if(k<verses.length-1)items.push("\n\n");
+ });
+ renderPassage(items);
+}
+
 function renderNormal(text){
- $("readingText").textContent=text;
+ const parts=text.trim().match(/\S+|\s+/g)||[];
+ renderPassage(parts.map(p=>/\S/.test(p)?{w:p}:p));
 }
 
 async function loadBible(){
@@ -195,7 +309,7 @@ async function loadBible(){
   if(cache[key]){
    tokens=cache[key].tokens;
    index=0;
-   renderNormal(cache[key].text);
+   renderBible(cache[key].verses);
    display();
    status(key+" loaded.");
    return;
@@ -208,7 +322,6 @@ async function loadBible(){
   const data=await response.json();
   if(!data.verses||!data.verses.length)throw Error("No verses returned");
 
-  const passage=data.verses.map(v=>v.text.trim()).join(" ");
   tokens=[];
   data.verses.forEach(v=>{
    const ref=name+" "+chapter+":"+v.verse;
@@ -216,9 +329,10 @@ async function loadBible(){
   });
 
   if(!tokens.length)throw Error("This chapter has no text");
-  cache[key]={tokens:tokens,text:passage};
+  const verses=data.verses.map(v=>({verse:v.verse,text:v.text}));
+  cache[key]={tokens:tokens,verses:verses};
   index=0;
-  renderNormal(data.verses.map(v=>v.verse+". "+v.text.trim()).join("\n\n"));
+  renderBible(verses);
   display();
   status(key+" loaded. Press Start when you're ready.");
  }catch(e){
@@ -246,7 +360,7 @@ $("load").onclick=()=>{
 };
 
 $("play").onclick=toggle;
-$("speed").oninput=()=>$("speedLabel").textContent=$("speed").value+" WPM";
+$("speed").oninput=()=>{$("speedLabel").textContent=$("speed").value+" WPM";updateFsInfo()};
 
 $("slower").onclick=()=>{
  $("speed").value=Math.max(50,Number($("speed").value)-25);
@@ -261,6 +375,40 @@ $("next").onclick=()=>{stop();index=Math.min(tokens.length-1,index+1);display()}
 $("restart").onclick=()=>{stop();index=0;display()};
 $("normalToggle").onclick=()=>$("normalPanel").classList.toggle("hidden");
 $("chapter").onchange=loadBible;
+
+/* Full screen controls */
+const ICON_EXPAND='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+const ICON_EXIT='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
+$("fsBtn").innerHTML=ICON_EXPAND;
+
+function setFull(on){
+ $("stage").classList.toggle("full",on);
+ document.body.classList.toggle("noscroll",on);
+ $("fsBtn").innerHTML=on?ICON_EXIT:ICON_EXPAND;
+ $("fsBtn").setAttribute("aria-label",on?"Exit full screen":"Full screen");
+ try{
+  if(on&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});
+  else if(!on&&document.fullscreenElement)document.exitFullscreen().catch(()=>{});
+ }catch(e){}
+ updateFsInfo();
+}
+$("fsBtn").onclick=e=>{e.stopPropagation();setFull(!$("stage").classList.contains("full"))};
+document.addEventListener("fullscreenchange",()=>{
+ if(!document.fullscreenElement&&$("stage").classList.contains("full"))setFull(false);
+});
+document.addEventListener("keydown",e=>{
+ if(!$("stage").classList.contains("full"))return;
+ if(e.key==="Escape")setFull(false);
+ else if(e.code==="Space"){e.preventDefault();toggle()}
+});
+$("stage").addEventListener("click",e=>{
+ if($("stage").classList.contains("full")&&!e.target.closest("button"))toggle();
+});
+$("fsPlay").onclick=toggle;
+$("fsBack").onclick=()=>$("back").click();
+$("fsNext").onclick=()=>$("next").click();
+$("fsSlower").onclick=()=>$("slower").click();
+$("fsFaster").onclick=()=>$("faster").click();
 
 $("upload").onchange=async e=>{
  const file=e.target.files[0];
