@@ -51,6 +51,9 @@ footer{text-align:center;padding:20px;color:var(--muted);font-size:12px}
 #stage.full #fsBar{display:block;position:absolute;left:14px;right:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);z-index:2}
 #fsBar .row button{padding:13px 4px}
 #fsInfo{text-align:center;margin-bottom:10px}
+#fsBtn,#fsBar{transition:opacity .4s ease}
+#stage.full.idle #fsBtn,#stage.full.idle #fsBar{opacity:0;pointer-events:none}
+#stage.full.idle{cursor:none}
 
 @media(min-width:650px){.selectors{display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:12px}.selectors select{margin:0}main{padding-top:25px}}
 </style>
@@ -381,8 +384,17 @@ const ICON_EXPAND='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" s
 const ICON_EXIT='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
 $("fsBtn").innerHTML=ICON_EXPAND;
 
+let idleTimer=null;
+function wake(){
+ const st=$("stage");
+ st.classList.remove("idle");
+ clearTimeout(idleTimer);
+ if(st.classList.contains("full"))idleTimer=setTimeout(()=>st.classList.add("idle"),3000);
+}
+
 function setFull(on){
  $("stage").classList.toggle("full",on);
+ if(on)wake();else{clearTimeout(idleTimer);$("stage").classList.remove("idle")}
  document.body.classList.toggle("noscroll",on);
  $("fsBtn").innerHTML=on?ICON_EXIT:ICON_EXPAND;
  $("fsBtn").setAttribute("aria-label",on?"Exit full screen":"Full screen");
@@ -399,11 +411,11 @@ document.addEventListener("fullscreenchange",()=>{
 document.addEventListener("keydown",e=>{
  if(!$("stage").classList.contains("full"))return;
  if(e.key==="Escape")setFull(false);
- else if(e.code==="Space"){e.preventDefault();toggle()}
+ else if(e.code==="Space"){e.preventDefault();wake();toggle()}
+ else wake();
 });
-$("stage").addEventListener("click",e=>{
- if($("stage").classList.contains("full")&&!e.target.closest("button"))toggle();
-});
+$("stage").addEventListener("pointerdown",wake);
+$("stage").addEventListener("pointermove",()=>{if($("stage").classList.contains("idle"))wake()});
 $("fsPlay").onclick=toggle;
 $("fsBack").onclick=()=>$("back").click();
 $("fsNext").onclick=()=>$("next").click();
