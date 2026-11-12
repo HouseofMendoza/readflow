@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>ReadFlow</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-512.png">
+<script>document.documentElement.className="js"</script>
+<style>
+:root{--gray:#f5f5f7;--ink:#1d1d1f;--muted:#6e6e73;--blue:#0071e3;--blue-d:#2997ff;--red:#ff453a;--ease:cubic-bezier(.2,.7,.2,1)}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;color:var(--ink);background:#fff;line-height:1.47;letter-spacing:-.01em;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body.noscroll{overflow:hidden}
+a{color:inherit;text-decoration:none}
+a:focus-visible,button:focus-visible,select:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.hidden{display:none}
+
+/* entrance: black screen, logo fades in, then lifts away (pure CSS) */
+#intro{position:fixed;inset:0;z-index:2000;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;pointer-events:none;animation:introOut .9s var(--ease) 1.4s forwards}
+#intro .mark{font-size:clamp(44px,10vw,96px);font-weight:600;letter-spacing:-.045em;animation:markIn .9s var(--ease) .1s both}
+#intro b,.brand b{color:var(--red);font-weight:600}
+@keyframes markIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+@keyframes introOut{to{opacity:0;transform:scale(1.06);visibility:hidden}}
+.cover{position:fixed;inset:0;z-index:3000;background:#000;opacity:0;transition:opacity .5s ease}
+.cover.on{opacity:1}
+
+/* nav */
+nav{position:sticky;top:0;z-index:20;height:48px;background:rgba(255,255,255,.8);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid rgba(0,0,0,.1)}
+.nav-in{max-width:1024px;height:100%;margin:auto;padding:0 22px;display:flex;align-items:center;justify-content:space-between;font-size:12px}
+.nav-in a{opacity:.8;transition:opacity .2s}.nav-in a:hover{opacity:1}
+.brand{font-weight:600;font-size:14px;letter-spacing:-.02em}
+
+/* type */
+.h{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;font-weight:600;letter-spacing:-.035em;line-height:1.07}
+.h1{font-size:clamp(44px,9vw,88px)}
+.h3{font-size:clamp(26px,4.5vw,40px)}
+.eb{font-size:21px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.sub{font-size:clamp(19px,2.4vw,26px);line-height:1.19;margin-top:14px}
+.small{font-size:13px;color:var(--muted);line-height:1.5}
+.hero{text-align:center;padding:72px 22px 40px}
+
+/* scroll reveal */
+.js .rv{opacity:0;transform:translateY(40px) scale(.98);transition:opacity 1s var(--ease) var(--d,0s),transform 1s var(--ease) var(--d,0s)}
+.js .rv.in{opacity:1;transform:none}
+
+/* layout */
+.wrap{max-width:880px;margin:0 auto 24px;padding:0 22px}
+.card{background:var(--gray);border-radius:28px;padding:32px}
+.row{display:flex;gap:9px;align-items:center}
+.row>*{flex:1;min-width:0}
+.acts{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+
+/* buttons + form */
+button{font:inherit;font-size:15px;padding:11px 18px;border:0;border-radius:980px;background:#e8e8ed;color:var(--ink);cursor:pointer;transition:background .2s,transform .3s var(--ease)}
+button:hover{background:#dcdce1}
+button:active{transform:scale(.97)}
+button:disabled{opacity:.35}
+.primary{background:var(--blue);color:#fff;font-weight:600}
+.primary:hover{background:#0077ed}
+label{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px}
+select,input[type=file]{width:100%;padding:13px 14px;background:#fff;color:var(--ink);border:1px solid #d2d2d7;border-radius:12px;font:inherit;font-size:16px}
+input[type=file]::file-selector-button{font:inherit;font-size:14px;margin-right:12px;padding:6px 14px;border:0;border-radius:980px;background:#e8e8ed;cursor:pointer}
+#status{font-size:13px;color:var(--muted);margin-top:16px;line-height:1.5}
+.sel{display:grid;gap:12px;grid-template-columns:1fr}
+
+/* reader */
+#stage{position:relative;height:clamp(260px,42vh,380px);background:#000;color:#fff;border-radius:28px;display:flex;align-items:center;justify-content:center;padding:22px;box-shadow:0 30px 60px rgba(0,0,0,.18);transition:box-shadow .8s var(--ease)}
+#stage.playing{box-shadow:0 30px 60px rgba(0,0,0,.18),0 0 0 1px rgba(41,151,255,.4),0 0 70px rgba(41,151,255,.2)}
+#word{font-size:clamp(40px,10vw,96px);font-weight:600;letter-spacing:-.045em;text-align:center;overflow-wrap:anywhere;line-height:1.1}
+.focus{color:var(--red)}
+#reference{position:absolute;bottom:18px;left:0;right:0;font-size:13px;color:#a1a1a6;text-align:center}
+.bar{height:4px;border-radius:2px;background:#d2d2d7;margin:20px 6px 0;overflow:hidden}
+#progress{height:100%;width:0;background:var(--blue);transition:width .15s linear}
+.ctl{margin-top:20px}
+.spd-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+.spd-head span{font-size:15px;color:var(--muted)}
+#speedLabel{font-size:28px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:#d2d2d7;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.3);cursor:pointer}
+input[type=range]::-moz-range-thumb{width:26px;height:26px;border:0;border-radius:50%;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.3);cursor:pointer}
+.rng{display:flex;justify-content:space-between;margin-top:10px}
+.ctl .row{margin-top:18px}
+.ctl .row.big button{padding:14px 10px;font-size:17px}
+#count{margin-top:16px;text-align:center}
+
+/* passage */
+#readingText{position:relative;background:#fff;border:1px solid #e5e5ea;border-radius:22px;padding:28px;font-family:Georgia,"Times New Roman",serif;font-size:20px;line-height:1.85;white-space:pre-wrap;overflow-wrap:anywhere;max-height:50vh;overflow:auto;margin-top:18px}
+.w{cursor:pointer;border-radius:4px;-webkit-tap-highlight-color:transparent}
+.w:active{background:rgba(0,113,227,.15)}
+.w.cur{background:rgba(0,113,227,.18);box-shadow:0 0 0 3px rgba(0,113,227,.18)}
+.vnum{color:var(--muted);font-family:-apple-system,Arial,sans-serif;font-size:14px}
+
+/* full screen */
+#fsBtn{position:absolute;top:14px;right:14px;width:40px;height:40px;padding:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.14);color:#fff;z-index:2}
+#fsBtn:hover{background:rgba(255,255,255,.24)}
+#fsBar{display:none}
+#stage.full{position:fixed;inset:0;z-index:1000;height:auto;border:0;border-radius:0;padding:20px;box-shadow:none}
+#stage.full #word{font-size:clamp(48px,14vw,128px)}
+#stage.full #fsBtn{top:calc(env(safe-area-inset-top,0px) + 10px)}
+#stage.full #reference{bottom:calc(env(safe-area-inset-bottom,0px) + 140px)}
+#stage.full #fsBar{display:block;position:absolute;left:14px;right:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);z-index:2}
+#fsBar button{background:rgba(255,255,255,.14);color:#fff;padding:13px 4px}
+#fsBar button:hover{background:rgba(255,255,255,.24)}
+#fsBar .primary{background:var(--blue)}
+#fsInfo{text-align:center;margin-bottom:10px;color:#a1a1a6}
+#fsBtn,#fsBar{transition:opacity .4s ease}
+#stage.full.idle #fsBtn,#stage.full.idle #fsBar{opacity:0;pointer-events:none}
+#stage.full.idle{cursor:none}
+
+footer{background:var(--gray);padding:0 22px 28px;margin-top:48px}
+footer div{max-width:1024px;margin:auto;border-top:1px solid #d2d2d7;padding-top:18px;color:var(--muted);font-size:12px}
+
+@media(min-width:650px){.sel{grid-template-columns:1.5fr 1fr 1fr}}
+@media(max-width:560px){.card{padding:24px 20px}#readingText{padding:20px;font-size:18px}}
+@media(prefers-reduced-motion:reduce){#intro{display:none}.js .rv{opacity:1;transform:none;transition:none}}
+</style>
+</head>
+<body>
+
+<div id="intro" aria-hidden="true"><div class="mark">Readfl<b>o</b>w</div></div>
+
+<nav aria-label="Primary">
+  <div class="nav-in">
+    <a id="homeLink" href="../">‹ House of Mendoza</a>
+    <span class="brand">Readfl<b>o</b>w</span>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="eb rv">ReadFlow</div>
+  <h1 class="h h1 rv" style="--d:.08s">Read faster.<br>Feel the flow.</h1>
+  <p class="sub rv" style="--d:.16s">Keep your eyes on the red letter.<br>The words come to you.</p>
+</header>
+
+<main>
+<section class="wrap rv" style="--d:.24s">
+  <div id="stage">
+    <button id="fsBtn" aria-label="Full screen"></button>
+    <div id="word">ReadFlow</div>
+    <div id="reference">Your next chapter starts here.</div>
+    <div id="fsBar">
+      <div id="fsInfo" class="small"></div>
+      <div class="row">
+        <button id="fsSlower">−25</button>
+        <button id="fsBack">‹</button>
+        <button id="fsPlay" class="primary">▶ Start</button>
+        <button id="fsNext">›</button>
+        <button id="fsFaster">+25</button>
+      </div>
+    </div>
+  </div>
+  <div class="bar"><div id="progress"></div></div>
+
+  <div class="card ctl">
+    <div class="spd-head"><span>Reading speed</span><strong id="speedLabel">250 WPM</strong></div>
+    <input id="speed" type="range" min="50" max="1000" step="25" value="250" aria-label="Reading speed">
+    <div class="rng small"><span>50 WPM</span><span>1000 WPM</span></div>
+    <div class="row big">
+      <button id="back">‹ Back</button>
+      <button id="play" class="primary">▶ Start</button>
+      <button id="next">Next ›</button>
+    </div>
+    <div class="row">
+      <button id="slower">− 25 WPM</button>
+      <button id="faster">+ 25 WPM</button>
+      <button id="restart">Restart</button>
+    </div>
+    <p id="count" class="small">Ready to begin.</p>
+  </div>
+</section>
+
+<section class="wrap rv">
+  <div class="card">
+    <h2 class="h h3">Choose what to read.</h2>
+    <div class="sel">
+      <div><label>Reading material</label>
+        <select id="source"><option value="tutorial">How to use ReadFlow (start here)</option><option value="bible">King James Bible</option><option value="custom">My imported book</option></select>
+      </div>
+      <div><label>Book of the Bible</label><select id="book"></select></div>
+      <div><label>Chapter</label><select id="chapter"></select></div>
+    </div>
+    <label>Import a PDF or text file</label>
+    <input type="file" id="upload" accept=".pdf,.txt,.text">
+    <p class="small" style="margin-top:10px">Your files are processed in your browser. Scanned PDFs may require text recognition (OCR).</p>
+    <div class="acts">
+      <button id="load" class="primary">Load reading</button>
+      <button id="normalToggle">Normal reading</button>
+    </div>
+    <div id="status" role="status">Welcome to ReadFlow. Choose a book to begin.</div>
+  </div>
+</section>
+
+<section class="wrap rv" id="normalPanel">
+  <h2 class="h h3">Read the full passage.</h2>
+  <p class="sub" style="font-size:19px;color:var(--muted)">Tap any word to jump the focus reader to that spot.</p>
+  <div id="readingText">Your reading passage will appear here.</div>
+</section>
+</main>
+
+<footer><div>House of Mendoza. Read at your own pace.</div></footer>
+
+<!-- 1. transitions (runs first, kept tiny so nothing can break it) -->
+<script>
+(()=>{
+const rm=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const els=[...document.querySelectorAll(".rv")];
+function start(){
+ if(!("IntersectionObserver" in window)){els.forEach(e=>e.classList.add("in"));return}
+ const io=new IntersectionObserver(es=>es.forEach(e=>{
+  if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target)}
+ }),{threshold:.12});
+ els.forEach(e=>io.observe(e));
+}
+setTimeout(start,rm?0:1300);
+
+document.getElementById("homeLink").addEventListener("click",e=>{
+ if(e.metaKey||e.ctrlKey||e.shiftKey||e.button||rm)return;
+ e.preventDefault();
+ const href=e.currentTarget.href;
+ const c=document.createElement("div");
+ c.className="cover";
+ document.body.appendChild(c);
+ requestAnimationFrame(()=>requestAnimationFrame(()=>c.classList.add("on")));
+ setTimeout(()=>{location.href=href},520);
+});
+addEventListener("pageshow",e=>{
+ if(e.persisted)document.querySelectorAll(".cover").forEach(c=>c.remove());
+});
+})();
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<!-- 2. the reader -->
+<script>
+const $=id=>document.getElementById(id);
+
+const books=[
+["Genesis",50],["Exodus",40],["Leviticus",27],["Numbers",36],["Deuteronomy",34],
+["Joshua",24],["Judges",21],["Ruth",4],["1 Samuel",31],["2 Samuel",24],
+["1 Kings",22],["2 Kings",25],["1 Chronicles",29],["2 Chronicles",36],
+["Ezra",10],["Nehemiah",13],["Esther",10],["Job",42],["Psalms",150],
+["Proverbs",31],["Ecclesiastes",12],["Song of Solomon",8],["Isaiah",66],
+["Jeremiah",52],["Lamentations",5],["Ezekiel",48],["Daniel",12],["Hosea",14],
+["Joel",3],["Amos",9],["Obadiah",1],["Jonah",4],["Micah",7],["Nahum",3],
+["Habakkuk",3],["Zephaniah",3],["Haggai",2],["Zechariah",14],["Malachi",4],
+["Matthew",28],["Mark",16],["Luke",24],["John",21],["Acts",28],["Romans",16],
+["1 Corinthians",16],["2 Corinthians",13],["Galatians",6],["Ephesians",6],
+["Philippians",4],["Colossians",4],["1 Thessalonians",5],["2 Thessalonians",3],
+["1 Timothy",6],["2 Timothy",4],["Titus",3],["Philemon",1],["Hebrews",13],
+["James",5],["1 Peter",5],["2 Peter",3],["1 John",5],["2 John",1],
+["3 John",1],["Jude",1],["Revelation",22]
+];
+
+let tokens=[],index=0,timer=null,playing=false,customName="";
+let wordEls=[],lastEl=null,renderId=0;
+let customTokens=[],customText="";
+const cache={};
+
+books.forEach(b=>$("book").add(new Option(b[0],b[0])));
+$("book").value="Genesis";
+
+function status(s){$("status").textContent=s}
+function setPlayLabel(){
+ const t=playing?"Ⅱ Pause":"▶ Start";
+ $("play").textContent=t;$("fsPlay").textContent=t;
+ $("stage").classList.toggle("playing",playing);
+}
+function stop(){playing=false;clearTimeout(timer);timer=null;setPlayLabel()}
+
+function escapeHTML(s){
+ return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function focal(word){
+ const chars=Array.from(word);
+ const positions=chars.map((c,i)=>/[A-Za-z0-9]/.test(c)?i:-1).filter(i=>i>=0);
+ if(!positions.length)return escapeHTML(word);
+ const target=positions[Math.floor((positions.length-1)*0.35)];
+ return chars.map((c,i)=>i===target?'<span class="focus">'+escapeHTML(c)+'</span>':escapeHTML(c)).join("");
+}
+
+function highlight(scroll){
+ if(lastEl){lastEl.classList.remove("cur");lastEl=null}
+ const el=wordEls[index];
+ if(!el)return;
+ el.classList.add("cur");
+ lastEl=el;
+ if(scroll){
+  const box=$("readingText");
+  if(el.offsetTop<box.scrollTop+10||el.offsetTop+el.offsetHeight>box.scrollTop+box.clientHeight-10){
+   box.scrollTo({top:Math.max(0,el.offsetTop-box.clientHeight/3),behavior:"smooth"});
+  }
+ }
+}
+
+function updateFsInfo(){
+ $("fsInfo").textContent=$("speed").value+" WPM · Word "+(tokens.length?index+1:0)+" of "+tokens.length;
+}
+
+function display(){
+ if(!tokens.length){$("word").textContent="Load a book to begin";return}
+ index=Math.max(0,Math.min(index,tokens.length-1));
+ $("word").innerHTML=focal(tokens[index].word);
+ $("reference").textContent=tokens[index].ref||customName||"ReadFlow";
+ $("count").textContent="Word "+(index+1)+" of "+tokens.length;
+ $("progress").style.width=((index+1)/tokens.length*100)+"%";
+ highlight(playing);
+ updateFsInfo();
+ try{
+  localStorage.setItem("readflow-progress",JSON.stringify({
+   source:$("source").value,book:$("book").value,
+   chapter:$("chapter").value,index:index
+  }));
+ }catch(e){}
+}
+
+function delay(word){
+ let ms=60000/Number($("speed").value);
+ if(/[.!?]["')\]]*$/.test(word))ms*=2;
+ else if(/[,;:]["')\]]*$/.test(word))ms*=1.45;
+ if(word.length>9)ms*=1.15;
+ return ms;
+}
+
+function tick(){
+ if(!playing)return;
+ if(index>=tokens.length-1){stop();status("You've reached the end of this passage.");return}
+ timer=setTimeout(()=>{index++;display();tick()},delay(tokens[index].word));
+}
+
+function toggle(){
+ if(!tokens.length){status("Load a book first.");return}
+ if(playing){stop();return}
+ if(index>=tokens.length-1)index=0;
+ playing=true;setPlayLabel();tick();
+}
+
+function jump(i){
+ if(!tokens.length)return;
+ index=i;
+ if(playing){clearTimeout(timer);display();tick()}
+ else display();
+ if(!$("stage").classList.contains("full")){
+  $("stage").scrollIntoView({behavior:"smooth",block:"center"});
+ }
+}
+
+$("readingText").addEventListener("click",e=>{
+ const w=e.target.closest(".w");
+ if(w)jump(Number(w.dataset.i));
+});
+
+function setTokens(text,ref){
+ return text.trim().split(/\s+/).filter(Boolean).map(word=>({word,ref:ref||customName}));
+}
+
+function showNormal(){$("normalPanel").classList.remove("hidden")}
+
+function renderPassage(items){
+ const box=$("readingText");
+ box.replaceChildren();
+ wordEls=[];lastEl=null;
+ const id=++renderId;
+ let pos=0;
+ (function chunk(){
+  if(id!==renderId)return;
+  const f=document.createDocumentFragment();
+  const end=Math.min(pos+3000,items.length);
+  for(;pos<end;pos++){
+   const it=items[pos];
+   if(typeof it==="string")f.append(it);
+   else if(it.w!==undefined){
+    const s=document.createElement("span");
+    s.className="w";s.textContent=it.w;s.dataset.i=wordEls.length;
+    wordEls.push(s);f.append(s);
+   }else{
+    const s=document.createElement("span");
+    s.className="vnum";s.textContent=it.n;f.append(s);
+   }
+  }
+  box.append(f);
+  highlight(false);
+  if(pos<items.length)requestAnimationFrame(chunk);
+ })();
+}
+
+function renderBible(verses){
+ const items=[];
+ verses.forEach((v,k)=>{
+  items.push({n:v.verse+". "});
+  v.text.trim().split(/\s+/).filter(Boolean).forEach((w,j)=>{
+   if(j)items.push(" ");
+   items.push({w});
+  });
+  if(k<verses.length-1)items.push("\n\n");
+ });
+ renderPassage(items);
+}
+
+function renderNormal(text){
+ const parts=text.trim().match(/\S+|\s+/g)||[];
+ renderPassage(parts.map(p=>/\S/.test(p)?{w:p}:p));
+}
+
+const TUTORIAL=`Welcome to Readflow. Quick lesson. Ready? Good.
+
+Here is the whole secret. Keep your eyes on the red letter. That is it. Your eyes do not need to move. The words come to you.
+
+Normally your eyes bounce across the page like a toddler in a bounce house. Here, they get to sit down and relax. See? Isn't that way nicer?
+
+Next, relax your brain. Do not try to say every word in your head. Just let the words land. If you miss one, nothing bad happens. Nobody is grading you. Your brain is smarter than you think, and it fills in the gaps all by itself.
+
+Start slow. Two hundred fifty words per minute is a great place to begin. When it feels easy, bump the speed up a little. Then a little more. Soon you will be flying.
+
+If you lose your place, hit Back, or tap any word in the full passage to jump right there. Blink whenever you need to. Breathing is also encouraged.
+
+Take breaks. Reading fast is fun, but your eyes deserve snacks too.
+
+Feeling brave? Raise the speed right now and watch your brain keep up. Surprise. You are already doing it.
+
+That is Readflow. Now pick a book of the Bible, load your own file, and read the way you were meant to. Happy reading.`;
+
+function loadTutorial(){
+ stop();
+ $("source").value="tutorial";
+ $("source").dispatchEvent(new Event("change"));
+ tokens=setTokens(TUTORIAL,"Readflow tutorial");
+ index=0;
+ renderNormal(TUTORIAL);
+ display();
+ showNormal();
+ status("Tutorial loaded. Press Start and keep your eyes on the red letter.");
+}
+
+async function loadBible(){
+ stop();
+ const name=$("book").value;
+ const chapter=Number($("chapter").value);
+ const key=name+" "+chapter;
+ try{
+  if(cache[key]){
+   tokens=cache[key].tokens;
+   index=0;
+   renderBible(cache[key].verses);
+   display();
+   status(key+" loaded.");
+   return;
+  }
+  status("Loading "+key+" from the Bible...");
+  const url="https://bible-api.com/"+encodeURIComponent(key)+"?translation=kjv";
+  const response=await fetch(url);
+  if(!response.ok)throw Error("Bible service unavailable");
+  const data=await response.json();
+  if(!data.verses||!data.verses.length)throw Error("No verses returned");
+
+  tokens=[];
+  data.verses.forEach(v=>{
+   const ref=name+" "+chapter+":"+v.verse;
+   setTokens(v.text,ref).forEach(t=>tokens.push(t));
+  });
+  if(!tokens.length)throw Error("This chapter has no text");
+  const verses=data.verses.map(v=>({verse:v.verse,text:v.text}));
+  cache[key]={tokens:tokens,verses:verses};
+  index=0;
+  renderBible(verses);
+  display();
+  status(key+" loaded. Press Start when you're ready.");
+ }catch(e){
+  console.error(e);
+  status("Could not load this Bible chapter. Check your internet connection and try again.");
+ }
+}
+
+$("book").onchange=()=>{
+ const b=books.find(x=>x[0]===$("book").value);
+ $("chapter").replaceChildren();
+ for(let i=1;i<=(b?b[1]:1);i++)$("chapter").add(new Option(i,i));
+};
+
+$("source").onchange=()=>{
+ const bible=$("source").value==="bible";
+ $("book").disabled=!bible;
+ $("chapter").disabled=!bible;
+};
+
+$("load").onclick=()=>{
+ if($("source").value==="bible")loadBible();
+ else if($("source").value==="tutorial")loadTutorial();
+ else if(customTokens.length){stop();tokens=customTokens;index=0;renderNormal(customText);display();showNormal();status(customName+" ready to read.");}
+ else status("Choose a PDF or text file first.");
+};
+
+$("play").onclick=toggle;
+$("speed").oninput=()=>{$("speedLabel").textContent=$("speed").value+" WPM";updateFsInfo()};
+
+$("slower").onclick=()=>{
+ $("speed").value=Math.max(50,Number($("speed").value)-25);
+ $("speed").dispatchEvent(new Event("input"));
+};
+$("faster").onclick=()=>{
+ $("speed").value=Math.min(1000,Number($("speed").value)+25);
+ $("speed").dispatchEvent(new Event("input"));
+};
+$("back").onclick=()=>{stop();index=Math.max(0,index-1);display()};
+$("next").onclick=()=>{stop();index=Math.min(tokens.length-1,index+1);display()};
+$("restart").onclick=()=>{stop();index=0;display()};
+$("normalToggle").onclick=()=>$("normalPanel").classList.toggle("hidden");
+$("chapter").onchange=loadBible;
+
+/* Full screen */
+const ICON_EXPAND='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+const ICON_EXIT='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
+$("fsBtn").innerHTML=ICON_EXPAND;
+
+let idleTimer=null;
+function wake(){
+ const st=$("stage");
+ st.classList.remove("idle");
+ clearTimeout(idleTimer);
+ if(st.classList.contains("full"))idleTimer=setTimeout(()=>st.classList.add("idle"),3000);
+}
+
+function setFull(on){
+ $("stage").classList.toggle("full",on);
+ if(on)wake();else{clearTimeout(idleTimer);$("stage").classList.remove("idle")}
+ document.body.classList.toggle("noscroll",on);
+ $("fsBtn").innerHTML=on?ICON_EXIT:ICON_EXPAND;
+ $("fsBtn").setAttribute("aria-label",on?"Exit full screen":"Full screen");
+ try{
+  if(on&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});
+  else if(!on&&document.fullscreenElement)document.exitFullscreen().catch(()=>{});
+ }catch(e){}
+ updateFsInfo();
+}
+$("fsBtn").onclick=e=>{e.stopPropagation();setFull(!$("stage").classList.contains("full"))};
+document.addEventListener("fullscreenchange",()=>{
+ if(!document.fullscreenElement&&$("stage").classList.contains("full"))setFull(false);
+});
+document.addEventListener("keydown",e=>{
+ if(!$("stage").classList.contains("full"))return;
+ if(e.key==="Escape")setFull(false);
+ else if(e.code==="Space"){e.preventDefault();wake();toggle()}
+ else wake();
+});
+$("stage").addEventListener("pointerdown",wake);
+$("stage").addEventListener("pointermove",()=>{if($("stage").classList.contains("idle"))wake()});
+$("fsPlay").onclick=toggle;
+$("fsBack").onclick=()=>$("back").click();
+$("fsNext").onclick=()=>$("next").click();
+$("fsSlower").onclick=()=>$("slower").click();
+$("fsFaster").onclick=()=>$("faster").click();
+
+$("upload").onchange=async e=>{
+ const file=e.target.files[0];
+ if(!file)return;
+ stop();
+ status("Opening your book...");
+ try{
+  let text="";
+  if(file.name.toLowerCase().endsWith(".pdf")){
+   if(!window.pdfjsLib)throw Error("PDF support needs an internet connection.");
+   pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+   const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;
+   for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p);
+    const content=await page.getTextContent();
+    text+=content.items.map(i=>i.str).join(" ")+"\n\n";
+   }
+  }else{
+   text=await file.text();
+  }
+  if(!text.trim())throw Error("No selectable text found in this file.");
+  customName=file.name;
+  tokens=setTokens(text,customName);
+  customTokens=tokens;customText=text;
+  index=0;
+  $("source").value="custom";
+  $("source").dispatchEvent(new Event("change"));
+  renderNormal(text);
+  display();
+  showNormal();
+  status(customName+" imported successfully.");
+ }catch(err){status(err.message||"Could not open this file.")}
+};
+
+async function init(){
+ $("book").value="Genesis";
+ $("book").dispatchEvent(new Event("change"));
+ try{
+  const saved=JSON.parse(localStorage.getItem("readflow-progress")||"null");
+  if(saved&&saved.source==="bible"&&books.some(b=>b[0]===saved.book)){
+   $("source").value="bible";
+   $("source").dispatchEvent(new Event("change"));
+   $("book").value=saved.book;
+   $("book").dispatchEvent(new Event("change"));
+   $("chapter").value=saved.chapter;
+   await loadBible();
+   index=Math.min(saved.index||0,Math.max(0,tokens.length-1));
+   display();
+   return;
+  }
+  if(saved&&saved.source==="tutorial"){
+   loadTutorial();
+   index=Math.min(saved.index||0,Math.max(0,tokens.length-1));
+   display();
+   return;
+  }
+ }catch(e){}
+ loadTutorial();
+}
+
+init();
+</script>
+</body>
+</html>
